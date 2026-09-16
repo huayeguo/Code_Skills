@@ -1,0 +1,3 @@
+interface:
+  display_name: "开发任务编排与交接"
+  short_description: "审查开发需求，按需拆解子代理任务，并通过证据检查决定继续或交接"
