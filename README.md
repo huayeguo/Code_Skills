@@ -1,6 +1,11 @@
 # Code Skills
 
-用于长期软件开发项目的 Codex Skills 集合。
+用于长期软件开发项目的 Skills 合集，同时覆盖 Codex 与 ZCode 客户端。
+
+- `development-orchestrator`：Codex 版编排 skill，派发子代理时按次显式传入模型与推理等级。
+- `zcode-dev-orchestrator`：ZCode 版编排 skill，将子任务路由到预置机队卡片（`.zcode/agents/`），模型档位固化在卡片上。
+
+两者共享同一套编排思想（需求审查、最小任务图、批次并行、证据验收、会话交接），只在“执行配置如何表达”这一层按客户端机制分叉。
 
 ## development-orchestrator
 
@@ -46,19 +51,74 @@
 
 新启动的 Codex 会话会发现该 skill。可使用 `$development-orchestrator` 显式调用；描述与需求匹配时也可被自动选择。
 
-### 目录
-
-```text
-.agents/skills/development-orchestrator/
-├── SKILL.md                         # 主流程：需求审查、分工、验证
-├── agents/openai.yaml               # UI 元数据
-└── references/
-    ├── delegation.md                # 子代理任务约定与配置选择
-    └── session-checkpoints.md       # 会话检查与交接规则
-```
-
 ### 使用边界
 
 该 skill 是工作流程，不是后台监控器，也不保证发现所有模型错误。它不会擅自改变产品目标、兼容承诺或成本边界；这些需要由用户决策。它只在当前工具实际支持的范围内选择代理配置，并且不把未执行的代理工作或测试写成已完成。
 
 对于项目状态汇报、资料核实和局部只读审阅，主代理通常直接完成；广泛审阅则先拆出独立调查路径，并按照当前可用并发槽位和可安全整合的结果数分批派发代理。若当前工具无法设置单个子代理的模型或推理等级，skill 会明确报告这个限制与实际回退配置。
+
+## zcode-dev-orchestrator
+
+`zcode-dev-orchestrator` 是 development-orchestrator 的 ZCode 适配版。ZCode 的 Agent 派发调用没有模型与推理等级参数，模型档位配置在子代理定义（机队卡片）上。因此该版本将“按任务性质选配置”改为“按任务性质选执行者”：skill 将子任务路由到三张预置机队卡片，档位差异由卡片固化。
+
+### 预置机队
+
+| 卡片 | 职责 | 档位 | 工具 |
+|---|---|---|---|
+| `orch-scout` | 只读调查、状态核实、代码地图 | GLM-5.3-Flash | Read, Bash |
+| `orch-builder` | 限定范围内的实现 | 继承会话模型 | 全部工具 |
+| `orch-auditor` | 独立证据审查 | GLM-5.3 | Read, Bash |
+
+机队按档位划分角色，不按业务领域划分；项目特异性由每次派发的任务消息承载，不为单个项目新造卡片。卡片缺失时按 skill 内置规格重建。
+
+无匹配机队角色时回退到 ZCode 内置类型：`Explore`（只读调查）、`general-purpose`（需要写入或多步执行）、`judge`（渲染交付物的视觉验收）。
+
+### 安装
+
+skill 复制到全局技能目录（与 Codex 共用 `~/.agents/skills/`，其描述限定“在 ZCode 客户端中”，不会被 Codex 误触发）：
+
+```text
+~/.agents/skills/zcode-dev-orchestrator/
+```
+
+机队卡片复制到 ZCode 用户级子代理目录：
+
+```text
+~/.zcode/agents/
+```
+
+或将本仓库直接作为 ZCode 工作区打开：仓库内的 `.zcode/agents/` 会作为项目级机队被自动发现。
+
+### 生效时机
+
+ZCode 在会话启动时扫描子代理名单和技能，会话中新建的文件下个会话生效。首次安装后需要新开一个会话。
+
+### 使用方式
+
+```text
+请使用 $zcode-dev-orchestrator 完成退款流程迁移，保持旧 API 兼容，并补充必要测试。
+```
+
+编排行为（是否分工、任务图、批次、验收、交接检查）与 Codex 版一致；差异只在执行配置层，详见其 `references/delegation.md` 中的机队路由表。
+
+## 目录
+
+```text
+.agents/skills/
+├── development-orchestrator/        # Codex 版：派发时按次传模型与推理等级
+│   ├── SKILL.md
+│   ├── agents/openai.yaml           # UI 元数据
+│   └── references/
+│       ├── delegation.md
+│       └── session-checkpoints.md
+└── zcode-dev-orchestrator/          # ZCode 版：路由到预置机队卡片
+    ├── SKILL.md
+    └── references/
+        ├── delegation.md            # 含机队路由表与机队规格
+        └── session-checkpoints.md
+
+.zcode/agents/                       # ZCode 机队卡片（项目级）
+├── orch-scout.md
+├── orch-builder.md
+└── orch-auditor.md
+```
